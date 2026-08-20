@@ -41,7 +41,7 @@ CloudFront) — local first, cloud once the local system is solid.
 | Task | Service | Status |
 |---|---|---|
 | 1 | `auth-service` — signup/login, JWT, refresh rotation, Google OAuth, role-based access | ✅ done |
-| 2 | `stream-service` — channels, scheduling, WebRTC signaling | not started |
+| 2 | `stream-service` — channels, scheduling, WebRTC signaling | ✅ done |
 | 3 | `chat-service` — WebSocket chat, Redis fan-out, Kafka history | not started |
 | 4 | `subscription-service` + `payment-service` | not started |
 | 5 | `commerce-service` — wallet, virtual gifts, creator balance | not started |
@@ -82,19 +82,88 @@ CloudFront) — local first, cloud once the local system is solid.
 - Passwordless accounts (pure OAuth signup) are supported —
   `password_hash` is nullable.
 
+## Task 2 — stream-service
+
+`services/stream-service` — Go, PostgreSQL (own database, `stream`) for
+channels/streams, Redis for ephemeral live-viewer presence, `gorilla/
+websocket` for the signaling relay. Verifies JWTs auth-service issued
+(same `JWT_SECRET`, no shared database, no shared Go package — see the
+comment atop `internal/auth/jwt.go`) rather than depending on auth-service
+at runtime.
+
+**REST endpoints:**
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| GET | `/healthz` | — | |
+| POST | `/channels` | bearer JWT, `creator` role | `{slug, name, description?, category?}` |
+| GET | `/channels/{slug}` | — | |
+| GET | `/channels?category=` | — | |
+| POST | `/channels/{slug}/streams` | bearer JWT, owner | `{title, tags?, scheduled_start_at?}` |
+| GET | `/channels/{slug}/streams` | — | includes live `viewer_count` from Redis |
+| POST | `/streams/{id}/go-live` | bearer JWT, owner | `scheduled` → `live`; 409 if the channel already has a live stream |
+| POST | `/streams/{id}/end` | bearer JWT, owner | `live` → `ended` |
+| GET | `/streams/{id}` | — | |
+| GET | `/streams/{id}/signal?role=broadcaster\|viewer` | broadcaster: `?token=` query param (WS upgrades can't carry a header) | WebRTC signaling, see below |
+
+**WebRTC signaling (`internal/signaling`):**
+
+This app never touches media — browsers negotiate their own
+`RTCPeerConnection` and exchange audio/video directly. The relay's only
+job is delivering SDP offers/answers and ICE candidates between the one
+broadcaster and each viewer for a stream, since two browsers otherwise
+have no way to find each other. Star topology, one room per live stream:
+
+```
+Broadcaster ──offer, ICE──▶ Hub ──(tagged "from"/"to")──▶ Viewer N
+Broadcaster ◀──answer, ICE── Hub ◀────────────────────── Viewer N
+```
+
+- A viewer connecting fires `viewer-joined` (with its connection ID) to
+  the broadcaster, so the broadcaster's client can create a new
+  `RTCPeerConnection` and send that viewer a targeted offer.
+- Every relayed message is re-tagged server-side (`from`/`to` set by the
+  hub, not trusted from the sender) — a viewer physically cannot address
+  a message to another viewer or spoof its own connection ID.
+- `viewer-count` is broadcast to everyone in the room on join/leave,
+  backed by a Redis set per stream (`internal/realtime`) so the count
+  survives independent of any single connection's state.
+- Verified end to end with a scripted two-client test exercising
+  join → offer → answer → ICE both directions → disconnect → count
+  update — see the Task 2 commit.
+- Scaling past a handful of concurrent viewers per stream needs a real
+  SFU (mediasoup, LiveKit) in front of this relay — deliberately out of
+  scope, see the package doc comment in `internal/signaling/hub.go`.
+
+**Design notes:**
+
+- `channels`/`streams` reference `creator_id`/`channel_id` as plain UUIDs,
+  not foreign keys into auth-service's database — cross-service
+  references are validated against the JWT at write time, not enforced
+  by the database, since the two services don't share a database.
+- Only one `live` stream per channel is enforced with a partial unique
+  index (`WHERE status = 'live'`), not application logic alone, so two
+  concurrent `go-live` calls can't both succeed.
+
 ## Running locally
 
 ```bash
 docker compose up -d --build
 ```
 
-- auth-service: http://localhost:8080
-- Postgres: localhost:5433 (host port remapped to avoid clashing with
-  other local projects; container-internal port is the standard 5432)
+- auth-service: http://localhost:8080 · Postgres: localhost:5433
+- stream-service: http://localhost:8081 · Postgres: localhost:5434 · Redis: localhost:6381
+
+(host ports remapped throughout to avoid clashing with other local
+projects; every container-internal port is the standard one)
 
 ```bash
+# signup as a creator, then use the returned access_token below
 curl -s -X POST localhost:8080/signup -H 'content-type: application/json' \
   -d '{"email":"you@example.com","password":"password123","display_name":"You","role":"creator"}'
+
+curl -s -X POST localhost:8081/channels -H "Authorization: Bearer <token>" -H 'content-type: application/json' \
+  -d '{"slug":"your-channel","name":"Your Channel"}'
 ```
 
 Google OAuth is optional locally — set `GOOGLE_CLIENT_ID` /
@@ -104,12 +173,14 @@ exercise it; without them `/oauth/google/login` returns `501`.
 ## Testing
 
 ```bash
-cd services/auth-service
-go build ./... && go vet ./...
+cd services/auth-service && go build ./... && go vet ./...
+cd services/stream-service && go build ./... && go vet ./...
 ```
 
-(Unit tests land alongside the next service that has real business logic
-to isolate — `auth-service`'s behavior so far is covered by the manual
-end-to-end pass documented in the Task 1 commit; a `pgxmock`-based test
-suite is a natural Task 1.5 if this is followed up on rather than moving
-straight to Task 2.)
+Both services so far are covered by manual end-to-end passes against the
+running stack, documented in each task's commit (`auth-service`: signup/
+login/refresh-rotation/RBAC; `stream-service`: channel + stream lifecycle,
+ownership boundaries, and the full WebRTC signaling relay via a scripted
+two-client test). A real unit-test suite (`pgxmock` for the DB layer) is
+worth adding before this grows much further — flagged here rather than
+silently deferred indefinitely.

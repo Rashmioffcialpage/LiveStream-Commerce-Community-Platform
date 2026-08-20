@@ -1,7 +1,7 @@
 services:
-  postgres:
+  auth-postgres:
     image: postgres:16-alpine
-    container_name: livestream-postgres
+    container_name: livestream-auth-postgres
     ports:
       # host 5433, not 5432 -- avoids clashing with other local projects
       - "5433:5432"
@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: auth
       POSTGRES_DB: auth
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - auth_postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U auth -d auth"]
       interval: 5s
@@ -23,7 +23,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      DATABASE_URL: postgres://auth:auth@postgres:5432/auth?sslmode=disable
+      DATABASE_URL: postgres://auth:auth@auth-postgres:5432/auth?sslmode=disable
       JWT_SECRET: local-dev-secret-do-not-use-in-prod
       PORT: "8080"
       # unset by default -- /oauth/google/* returns 501 until these are set
@@ -31,8 +31,58 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_REDIRECT_URL: ${GOOGLE_REDIRECT_URL:-http://localhost:8080/oauth/google/callback}
     depends_on:
-      postgres:
+      auth-postgres:
+        condition: service_healthy
+
+  # --- Task 2: stream-service ---
+  # own Postgres + Redis, per-service-database like auth-service -- the
+  # only thing stream-service shares with auth-service is JWT_SECRET, so
+  # it can verify tokens auth-service issued without a shared database.
+
+  stream-postgres:
+    image: postgres:16-alpine
+    container_name: livestream-stream-postgres
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_USER: stream
+      POSTGRES_PASSWORD: stream
+      POSTGRES_DB: stream
+    volumes:
+      - stream_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stream -d stream"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  stream-redis:
+    image: redis:7-alpine
+    container_name: livestream-stream-redis
+    ports:
+      - "6381:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  stream-service:
+    build: ./services/stream-service
+    container_name: stream-service
+    ports:
+      - "8081:8081"
+    environment:
+      DATABASE_URL: postgres://stream:stream@stream-postgres:5432/stream?sslmode=disable
+      REDIS_URL: redis://stream-redis:6379/0
+      JWT_SECRET: local-dev-secret-do-not-use-in-prod
+      PORT: "8081"
+    depends_on:
+      stream-postgres:
+        condition: service_healthy
+      stream-redis:
         condition: service_healthy
 
 volumes:
-  postgres_data:
+  auth_postgres_data:
+  stream_postgres_data:

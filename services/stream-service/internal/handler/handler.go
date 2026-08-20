@@ -1,0 +1,44 @@
+package handler
+
+import (
+	"encoding/json"
+	"net/http"
+
+	"stream-service/internal/config"
+	"stream-service/internal/db"
+	"stream-service/internal/realtime"
+	"stream-service/internal/signaling"
+)
+
+type Handler struct {
+	DB       *db.DB
+	Presence *realtime.Presence
+	Hub      *signaling.Hub
+	Cfg      config.Config
+}
+
+func New(database *db.DB, presence *realtime.Presence, hub *signaling.Hub, cfg config.Config) *Handler {
+	return &Handler{DB: database, Presence: presence, Hub: hub, Cfg: cfg}
+}
+
+func (h *Handler) Healthz(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
+	if err := json.NewDecoder(r.Body).Decode(dst); err != nil {
+		writeError(w, http.StatusBadRequest, "malformed request body")
+		return false
+	}
+	return true
+}
+
+func writeJSON(w http.ResponseWriter, status int, body any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(body)
+}
+
+func writeError(w http.ResponseWriter, status int, msg string) {
+	writeJSON(w, status, map[string]string{"error": msg})
+}
