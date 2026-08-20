@@ -51,6 +51,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", h.Healthz)
+	mux.HandleFunc("GET /demo", h.Demo)
 
 	mux.HandleFunc("GET /channels", h.ListChannels)
 	mux.HandleFunc("GET /channels/{slug}", h.GetChannel)
