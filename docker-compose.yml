@@ -83,6 +83,87 @@ services:
       stream-redis:
         condition: service_healthy
 
+  # --- Task 3: chat-service ---
+  # adds Kafka to the platform: chat-service publishes to it for durable
+  # history (see internal/kafka's doc comment) while live delivery goes
+  # over Redis Pub/Sub -- same latency-path/durability-path split as
+  # fraud-detection's decision cache vs Postgres.
+
+  kafka:
+    image: apache/kafka:3.9.0
+    container_name: livestream-kafka
+    ports:
+      - "9194:9094"
+    environment:
+      KAFKA_NODE_ID: 0
+      KAFKA_PROCESS_ROLES: controller,broker
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 0@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9194
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+
+  chat-postgres:
+    image: postgres:16-alpine
+    container_name: livestream-chat-postgres
+    ports:
+      - "5435:5432"
+    environment:
+      POSTGRES_USER: chat
+      POSTGRES_PASSWORD: chat
+      POSTGRES_DB: chat
+    volumes:
+      - chat_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chat -d chat"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  chat-redis:
+    image: redis:7-alpine
+    container_name: livestream-chat-redis
+    ports:
+      - "6382:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  chat-service:
+    build: ./services/chat-service
+    container_name: chat-service
+    ports:
+      - "8082:8082"
+    environment:
+      DATABASE_URL: postgres://chat:chat@chat-postgres:5432/chat?sslmode=disable
+      REDIS_URL: redis://chat-redis:6379/0
+      JWT_SECRET: local-dev-secret-do-not-use-in-prod
+      KAFKA_BROKERS: kafka:9092
+      STREAM_SERVICE_URL: http://stream-service:8081
+      PORT: "8082"
+    depends_on:
+      chat-postgres:
+        condition: service_healthy
+      chat-redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      stream-service:
+        condition: service_started
+
 volumes:
   auth_postgres_data:
   stream_postgres_data:
+  chat_postgres_data:
+  kafka_data:

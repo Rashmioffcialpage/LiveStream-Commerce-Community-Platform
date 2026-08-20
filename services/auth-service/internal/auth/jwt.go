@@ -14,9 +14,10 @@ import (
 )
 
 type Claims struct {
-	UserID string     `json:"sub"`
-	Email  string     `json:"email"`
-	Role   model.Role `json:"role"`
+	UserID      string     `json:"sub"`
+	Email       string     `json:"email"`
+	DisplayName string     `json:"display_name"`
+	Role        model.Role `json:"role"`
 	jwt.RegisteredClaims
 }
 
@@ -24,9 +25,10 @@ var ErrInvalidToken = errors.New("invalid or expired token")
 
 func GenerateAccessToken(secret string, ttl time.Duration, u *model.User) (string, error) {
 	claims := Claims{
-		UserID: u.ID,
-		Email:  u.Email,
-		Role:   u.Role,
+		UserID:      u.ID,
+		Email:       u.Email,
+		DisplayName: u.DisplayName,
+		Role:        u.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

@@ -66,6 +66,25 @@ func (h *Handler) GetChannel(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, channel)
 }
 
+// GetChannelInternal is for service-to-service lookups (chat-service needs
+// creator_id to authorize moderation actions without duplicating the
+// channels table). Not authenticated -- in a real deployment this would sit
+// behind a network policy/service mesh restricting it to internal traffic;
+// here it's internal-only by convention, documented rather than enforced.
+func (h *Handler) GetChannelInternal(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	channel, err := h.DB.GetChannelByID(r.Context(), id)
+	if errors.Is(err, db.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "channel not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not fetch channel")
+		return
+	}
+	writeJSON(w, http.StatusOK, channel)
+}
+
 func (h *Handler) ListChannels(w http.ResponseWriter, r *http.Request) {
 	category := r.URL.Query().Get("category")
 	channels, err := h.DB.ListChannels(r.Context(), category, 50)

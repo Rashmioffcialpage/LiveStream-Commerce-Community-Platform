@@ -56,6 +56,7 @@ func main() {
 	mux.HandleFunc("GET /channels", h.ListChannels)
 	mux.HandleFunc("GET /channels/{slug}", h.GetChannel)
 	mux.HandleFunc("GET /channels/{slug}/streams", h.ListChannelStreams)
+	mux.HandleFunc("GET /internal/channels/{id}", h.GetChannelInternal)
 
 	creatorAuth := func(next http.Handler) http.Handler {
 		return auth.RequireAuth(cfg.JWTSecret)(auth.RequireRole(auth.RoleCreator)(next))
