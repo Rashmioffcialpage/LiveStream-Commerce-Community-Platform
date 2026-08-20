@@ -1,5 +1,7 @@
-# This workflow will build a golang project
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go
+# Each service under services/* is its own Go module (independently
+# buildable/deployable microservices, not a single repo-root module), so
+# this matrixes over them instead of running `go build ./...` from the
+# repo root -- there's no go.mod there for that to find.
 
 name: Go
 
@@ -10,19 +12,28 @@ on:
     branches: [ "main" ]
 
 jobs:
-
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [auth-service, stream-service]
+    defaults:
+      run:
+        working-directory: services/${{ matrix.service }}
     steps:
     - uses: actions/checkout@v4
 
     - name: Set up Go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
-        go-version: '1.20'
+        go-version: '1.26'
+        cache-dependency-path: services/${{ matrix.service }}/go.sum
 
     - name: Build
       run: go build -v ./...
+
+    - name: Vet
+      run: go vet ./...
 
     - name: Test
       run: go test -v ./...
