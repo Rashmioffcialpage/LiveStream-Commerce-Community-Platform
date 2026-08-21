@@ -71,6 +71,12 @@ func (h *Handler) Demo(w http.ResponseWriter, r *http.Request) {
       if (msg.type === 'viewer-count') countEl.textContent = msg.payload.count;
     };
   }
+
+  const params = new URLSearchParams(location.search);
+  if (params.get('stream_id')) {
+    document.getElementById('streamId').value = params.get('stream_id');
+    if (params.get('autoconnect') === '1') connect();
+  }
 </script>
 </body>
 </html>

@@ -7,6 +7,16 @@ type Config struct {
 	DatabaseURL string
 	RedisURL    string
 	JWTSecret   string
+
+	// S3-compatible object storage for stream recordings. Points at MinIO
+	// locally; in production this is just AWS S3 with S3Endpoint unset
+	// (the SDK defaults to the real AWS endpoints) -- see internal/storage.
+	S3Endpoint       string
+	S3PublicEndpoint string
+	S3AccessKey      string
+	S3SecretKey      string
+	S3Bucket         string
+	S3Region         string
 }
 
 func Load() Config {
@@ -17,6 +27,13 @@ func Load() Config {
 		// must match auth-service's JWT_SECRET -- stream-service verifies
 		// tokens it never issues, it doesn't mint its own.
 		JWTSecret: getEnv("JWT_SECRET", "dev-secret-change-me"),
+
+		S3Endpoint:       os.Getenv("S3_ENDPOINT"), // empty = real AWS S3
+		S3PublicEndpoint: getEnv("S3_PUBLIC_ENDPOINT", "http://localhost:9002"),
+		S3AccessKey:      getEnv("S3_ACCESS_KEY", "minioadmin"),
+		S3SecretKey:      getEnv("S3_SECRET_KEY", "minioadmin"),
+		S3Bucket:         getEnv("S3_BUCKET", "recordings"),
+		S3Region:         getEnv("S3_REGION", "us-east-1"),
 	}
 }
 

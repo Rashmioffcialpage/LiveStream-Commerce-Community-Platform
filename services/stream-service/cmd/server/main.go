@@ -15,6 +15,7 @@ import (
 	"stream-service/internal/handler"
 	"stream-service/internal/realtime"
 	"stream-service/internal/signaling"
+	"stream-service/internal/storage"
 )
 
 func main() {
@@ -46,8 +47,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	store, err := storage.New(ctx, cfg)
+	if err != nil {
+		slog.Error("configure object storage", "err", err)
+		os.Exit(1)
+	}
+	if err := store.EnsureBucket(ctx); err != nil {
+		slog.Error("ensure recordings bucket", "err", err)
+		os.Exit(1)
+	}
+
 	hub := signaling.NewHub()
-	h := handler.New(database, presence, hub, cfg)
+	h := handler.New(database, presence, hub, store, cfg)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", h.Healthz)
@@ -65,6 +76,7 @@ func main() {
 	mux.Handle("POST /channels/{slug}/streams", creatorAuth(http.HandlerFunc(h.CreateStream)))
 	mux.Handle("POST /streams/{id}/go-live", creatorAuth(http.HandlerFunc(h.GoLive)))
 	mux.Handle("POST /streams/{id}/end", creatorAuth(http.HandlerFunc(h.EndStream)))
+	mux.Handle("POST /streams/{id}/recording", creatorAuth(http.HandlerFunc(h.UploadRecording)))
 
 	mux.HandleFunc("GET /streams/{id}", h.GetStream)
 	// auth for /signal is handled inside the handler itself: the
@@ -75,7 +87,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           logRequests(mux),
+		Handler:           withCORS(logRequests(mux)),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -92,6 +104,21 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(shutdownCtx)
+}
+
+// see auth-service/cmd/server/main.go's withCORS for the same note: wide
+// open for local dev, would be scoped to a real frontend origin in prod.
+func withCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func logRequests(next http.Handler) http.Handler {

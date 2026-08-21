@@ -109,9 +109,9 @@ func (d *DB) CreateStream(ctx context.Context, channelID, title string, tags []s
 	err := d.Pool.QueryRow(ctx, `
 		INSERT INTO streams (channel_id, title, tags, scheduled_start_at)
 		VALUES ($1, $2, $3, $4)
-		RETURNING id, channel_id, title, tags, status, scheduled_start_at, started_at, ended_at, created_at
+		RETURNING id, channel_id, title, tags, status, scheduled_start_at, started_at, ended_at, created_at, recording_url
 	`, channelID, title, tags, scheduledStartAt).Scan(
-		&s.ID, &s.ChannelID, &s.Title, &s.Tags, &s.Status, &s.ScheduledStartAt, &s.StartedAt, &s.EndedAt, &s.CreatedAt,
+		&s.ID, &s.ChannelID, &s.Title, &s.Tags, &s.Status, &s.ScheduledStartAt, &s.StartedAt, &s.EndedAt, &s.CreatedAt, &s.RecordingURL,
 	)
 	return &s, err
 }
@@ -119,9 +119,9 @@ func (d *DB) CreateStream(ctx context.Context, channelID, title string, tags []s
 func (d *DB) GetStream(ctx context.Context, id string) (*model.Stream, error) {
 	var s model.Stream
 	err := d.Pool.QueryRow(ctx, `
-		SELECT id, channel_id, title, tags, status, scheduled_start_at, started_at, ended_at, created_at
+		SELECT id, channel_id, title, tags, status, scheduled_start_at, started_at, ended_at, created_at, recording_url
 		FROM streams WHERE id = $1
-	`, id).Scan(&s.ID, &s.ChannelID, &s.Title, &s.Tags, &s.Status, &s.ScheduledStartAt, &s.StartedAt, &s.EndedAt, &s.CreatedAt)
+	`, id).Scan(&s.ID, &s.ChannelID, &s.Title, &s.Tags, &s.Status, &s.ScheduledStartAt, &s.StartedAt, &s.EndedAt, &s.CreatedAt, &s.RecordingURL)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -130,7 +130,7 @@ func (d *DB) GetStream(ctx context.Context, id string) (*model.Stream, error) {
 
 func (d *DB) ListStreamsByChannel(ctx context.Context, channelID string) ([]model.Stream, error) {
 	rows, err := d.Pool.Query(ctx, `
-		SELECT id, channel_id, title, tags, status, scheduled_start_at, started_at, ended_at, created_at
+		SELECT id, channel_id, title, tags, status, scheduled_start_at, started_at, ended_at, created_at, recording_url
 		FROM streams WHERE channel_id = $1 ORDER BY scheduled_start_at DESC
 	`, channelID)
 	if err != nil {
@@ -141,7 +141,7 @@ func (d *DB) ListStreamsByChannel(ctx context.Context, channelID string) ([]mode
 	streams := []model.Stream{}
 	for rows.Next() {
 		var s model.Stream
-		if err := rows.Scan(&s.ID, &s.ChannelID, &s.Title, &s.Tags, &s.Status, &s.ScheduledStartAt, &s.StartedAt, &s.EndedAt, &s.CreatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.ChannelID, &s.Title, &s.Tags, &s.Status, &s.ScheduledStartAt, &s.StartedAt, &s.EndedAt, &s.CreatedAt, &s.RecordingURL); err != nil {
 			return nil, err
 		}
 		streams = append(streams, s)
@@ -158,8 +158,8 @@ func (d *DB) GoLive(ctx context.Context, id string) (*model.Stream, error) {
 	err := d.Pool.QueryRow(ctx, `
 		UPDATE streams SET status = 'live', started_at = now()
 		WHERE id = $1 AND status = 'scheduled'
-		RETURNING id, channel_id, title, tags, status, scheduled_start_at, started_at, ended_at, created_at
-	`, id).Scan(&s.ID, &s.ChannelID, &s.Title, &s.Tags, &s.Status, &s.ScheduledStartAt, &s.StartedAt, &s.EndedAt, &s.CreatedAt)
+		RETURNING id, channel_id, title, tags, status, scheduled_start_at, started_at, ended_at, created_at, recording_url
+	`, id).Scan(&s.ID, &s.ChannelID, &s.Title, &s.Tags, &s.Status, &s.ScheduledStartAt, &s.StartedAt, &s.EndedAt, &s.CreatedAt, &s.RecordingURL)
 	if isUniqueViolation(err) {
 		return nil, ErrAlreadyLive
 	}
@@ -174,8 +174,21 @@ func (d *DB) EndStream(ctx context.Context, id string) (*model.Stream, error) {
 	err := d.Pool.QueryRow(ctx, `
 		UPDATE streams SET status = 'ended', ended_at = now()
 		WHERE id = $1 AND status = 'live'
-		RETURNING id, channel_id, title, tags, status, scheduled_start_at, started_at, ended_at, created_at
-	`, id).Scan(&s.ID, &s.ChannelID, &s.Title, &s.Tags, &s.Status, &s.ScheduledStartAt, &s.StartedAt, &s.EndedAt, &s.CreatedAt)
+		RETURNING id, channel_id, title, tags, status, scheduled_start_at, started_at, ended_at, created_at, recording_url
+	`, id).Scan(&s.ID, &s.ChannelID, &s.Title, &s.Tags, &s.Status, &s.ScheduledStartAt, &s.StartedAt, &s.EndedAt, &s.CreatedAt, &s.RecordingURL)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return &s, err
+}
+
+func (d *DB) SetRecordingURL(ctx context.Context, id, url string) (*model.Stream, error) {
+	var s model.Stream
+	err := d.Pool.QueryRow(ctx, `
+		UPDATE streams SET recording_url = $2
+		WHERE id = $1
+		RETURNING id, channel_id, title, tags, status, scheduled_start_at, started_at, ended_at, created_at, recording_url
+	`, id, url).Scan(&s.ID, &s.ChannelID, &s.Title, &s.Tags, &s.Status, &s.ScheduledStartAt, &s.StartedAt, &s.EndedAt, &s.CreatedAt, &s.RecordingURL)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}

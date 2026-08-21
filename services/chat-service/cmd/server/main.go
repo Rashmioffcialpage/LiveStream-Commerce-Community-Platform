@@ -63,6 +63,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", h.Healthz)
+	mux.HandleFunc("GET /demo", h.Demo)
 	mux.HandleFunc("GET /streams/{id}/chat/history", h.History)
 
 	authed := auth.RequireAuth(cfg.JWTSecret)
@@ -73,7 +74,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           logRequests(mux),
+		Handler:           withCORS(logRequests(mux)),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -90,6 +91,21 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(shutdownCtx)
+}
+
+// see auth-service/cmd/server/main.go's withCORS for the same note: wide
+// open for local dev, would be scoped to a real frontend origin in prod.
+func withCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func logRequests(next http.Handler) http.Handler {

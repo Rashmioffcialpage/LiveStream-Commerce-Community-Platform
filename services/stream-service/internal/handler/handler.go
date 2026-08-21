@@ -8,17 +8,19 @@ import (
 	"stream-service/internal/db"
 	"stream-service/internal/realtime"
 	"stream-service/internal/signaling"
+	"stream-service/internal/storage"
 )
 
 type Handler struct {
 	DB       *db.DB
 	Presence *realtime.Presence
 	Hub      *signaling.Hub
+	Storage  *storage.Client
 	Cfg      config.Config
 }
 
-func New(database *db.DB, presence *realtime.Presence, hub *signaling.Hub, cfg config.Config) *Handler {
-	return &Handler{DB: database, Presence: presence, Hub: hub, Cfg: cfg}
+func New(database *db.DB, presence *realtime.Presence, hub *signaling.Hub, store *storage.Client, cfg config.Config) *Handler {
+	return &Handler{DB: database, Presence: presence, Hub: hub, Storage: store, Cfg: cfg}
 }
 
 func (h *Handler) Healthz(w http.ResponseWriter, r *http.Request) {

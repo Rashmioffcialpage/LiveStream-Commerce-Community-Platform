@@ -67,6 +67,29 @@ services:
       timeout: 5s
       retries: 10
 
+  # S3-compatible object storage for stream recordings, standing in for
+  # AWS S3 locally -- stream-service talks to it through the real AWS S3
+  # SDK (just pointed at a custom endpoint), so swapping in real S3 in
+  # production is an env var change, not a code change. See docs/
+  # task-recordings.md.
+  minio:
+    image: minio/minio:latest
+    container_name: livestream-minio
+    ports:
+      - "9002:9000" # S3 API
+      - "9003:9001" # web console
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   stream-service:
     build: ./services/stream-service
     container_name: stream-service
@@ -77,10 +100,18 @@ services:
       REDIS_URL: redis://stream-redis:6379/0
       JWT_SECRET: local-dev-secret-do-not-use-in-prod
       PORT: "8081"
+      S3_ENDPOINT: http://minio:9000
+      S3_PUBLIC_ENDPOINT: http://localhost:9002
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      S3_BUCKET: recordings
+      S3_REGION: us-east-1
     depends_on:
       stream-postgres:
         condition: service_healthy
       stream-redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
 
   # --- Task 3: chat-service ---
@@ -167,3 +198,4 @@ volumes:
   stream_postgres_data:
   chat_postgres_data:
   kafka_data:
+  minio_data:

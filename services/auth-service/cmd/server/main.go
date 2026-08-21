@@ -53,7 +53,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           logRequests(mux),
+		Handler:           withCORS(logRequests(mux)),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -70,6 +70,24 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(shutdownCtx)
+}
+
+// withCORS allows the Next.js dev server (a different origin) to call this
+// API directly from the browser. Wide open (any origin) because this is a
+// local dev/demo deployment with no cookie-based auth to protect -- a real
+// deployment would scope Access-Control-Allow-Origin to the actual
+// frontend domain instead of "*".
+func withCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func logRequests(next http.Handler) http.Handler {

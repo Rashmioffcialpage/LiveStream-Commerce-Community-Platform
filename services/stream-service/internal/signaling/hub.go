@@ -22,14 +22,14 @@ import (
 type MessageType string
 
 const (
-	TypeOffer        MessageType = "offer"
-	TypeAnswer       MessageType = "answer"
-	TypeICECandidate MessageType = "ice-candidate"
-	TypeViewerJoined MessageType = "viewer-joined"
-	TypeViewerLeft   MessageType = "viewer-left"
+	TypeOffer           MessageType = "offer"
+	TypeAnswer          MessageType = "answer"
+	TypeICECandidate    MessageType = "ice-candidate"
+	TypeViewerJoined    MessageType = "viewer-joined"
+	TypeViewerLeft      MessageType = "viewer-left"
 	TypeBroadcasterGone MessageType = "broadcaster-left"
-	TypeViewerCount  MessageType = "viewer-count"
-	TypeError        MessageType = "error"
+	TypeViewerCount     MessageType = "viewer-count"
+	TypeError           MessageType = "error"
 )
 
 type Message struct {
@@ -42,10 +42,10 @@ type Message struct {
 var ErrRoomHasBroadcaster = errors.New("stream already has an active broadcaster connection")
 
 type Client struct {
-	ConnID string
+	ConnID        string
 	IsBroadcaster bool
-	conn   *websocket.Conn
-	send   chan Message
+	conn          *websocket.Conn
+	send          chan Message
 }
 
 func newClient(connID string, isBroadcaster bool, conn *websocket.Conn) *Client {

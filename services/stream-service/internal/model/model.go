@@ -21,14 +21,15 @@ const (
 )
 
 type Stream struct {
-	ID                string       `json:"id"`
-	ChannelID         string       `json:"channel_id"`
-	Title             string       `json:"title"`
-	Tags              []string     `json:"tags"`
-	Status            StreamStatus `json:"status"`
-	ScheduledStartAt  time.Time    `json:"scheduled_start_at"`
-	StartedAt         *time.Time   `json:"started_at,omitempty"`
-	EndedAt           *time.Time   `json:"ended_at,omitempty"`
-	CreatedAt         time.Time    `json:"created_at"`
-	ViewerCount       int          `json:"viewer_count"`
+	ID               string       `json:"id"`
+	ChannelID        string       `json:"channel_id"`
+	Title            string       `json:"title"`
+	Tags             []string     `json:"tags"`
+	Status           StreamStatus `json:"status"`
+	ScheduledStartAt time.Time    `json:"scheduled_start_at"`
+	StartedAt        *time.Time   `json:"started_at,omitempty"`
+	EndedAt          *time.Time   `json:"ended_at,omitempty"`
+	CreatedAt        time.Time    `json:"created_at"`
+	ViewerCount      int          `json:"viewer_count"`
+	RecordingURL     *string      `json:"recording_url,omitempty"`
 }
