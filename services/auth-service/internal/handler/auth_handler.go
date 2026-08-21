@@ -148,6 +148,24 @@ func (h *Handler) CreatorOnlyPing(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"message": "welcome, creator " + claims.Email})
 }
 
+// GetUserInternal is for service-to-service lookups: notification-service
+// needs a display_name to write a readable notification body and an email
+// to actually deliver one, given only a user_id from a Kafka event. Not
+// authenticated -- internal-only by convention, same as stream-service's
+// GET /internal/channels/{id}. Sharing email between our own backend
+// services for a legitimate purpose (sending that user a notification)
+// is normal; it's exposure to the public internet that GetUserInternal's
+// convention-only auth would actually be a problem for.
+func (h *Handler) GetUserInternal(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	user, err := h.DB.GetUserByID(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"id": user.ID, "display_name": user.DisplayName, "email": user.Email})
+}
+
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	claims, ok := auth.ClaimsFromContext(r.Context())
 	if !ok {

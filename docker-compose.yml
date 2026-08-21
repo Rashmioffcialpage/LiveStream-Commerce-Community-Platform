@@ -106,10 +106,13 @@ services:
       S3_SECRET_KEY: minioadmin
       S3_BUCKET: recordings
       S3_REGION: us-east-1
+      KAFKA_BROKERS: kafka:9092
     depends_on:
       stream-postgres:
         condition: service_healthy
       stream-redis:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
       minio:
         condition: service_healthy
@@ -315,6 +318,65 @@ services:
       payment-service:
         condition: service_started
 
+  # --- Task 6: notification-service ---
+  # consumes subscription-events, gift-events, and stream-events (the
+  # latter newly produced by stream-service's GoLive) and turns each into
+  # a durable notification + a live WebSocket push + a (logged, not
+  # actually sent -- see internal/email) email.
+
+  notification-postgres:
+    image: postgres:16-alpine
+    container_name: livestream-notification-postgres
+    ports:
+      - "5439:5432"
+    environment:
+      POSTGRES_USER: notification
+      POSTGRES_PASSWORD: notification
+      POSTGRES_DB: notification
+    volumes:
+      - notification_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notification -d notification"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  notification-redis:
+    image: redis:7-alpine
+    container_name: livestream-notification-redis
+    ports:
+      - "6383:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  notification-service:
+    build: ./services/notification-service
+    container_name: notification-service
+    ports:
+      - "8087:8087"
+    environment:
+      DATABASE_URL: postgres://notification:notification@notification-postgres:5432/notification?sslmode=disable
+      REDIS_URL: redis://notification-redis:6379/0
+      JWT_SECRET: local-dev-secret-do-not-use-in-prod
+      KAFKA_BROKERS: kafka:9092
+      AUTH_SERVICE_URL: http://auth-service:8080
+      SUBSCRIPTION_SERVICE_URL: http://subscription-service:8083
+      PORT: "8087"
+    depends_on:
+      notification-postgres:
+        condition: service_healthy
+      notification-redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      subscription-service:
+        condition: service_started
+
 volumes:
   auth_postgres_data:
   stream_postgres_data:
@@ -324,3 +386,4 @@ volumes:
   payment_postgres_data:
   subscription_postgres_data:
   commerce_postgres_data:
+  notification_postgres_data:

@@ -13,6 +13,7 @@ import (
 	"stream-service/internal/config"
 	"stream-service/internal/db"
 	"stream-service/internal/handler"
+	"stream-service/internal/kafka"
 	"stream-service/internal/realtime"
 	"stream-service/internal/signaling"
 	"stream-service/internal/storage"
@@ -57,8 +58,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	producer := kafka.NewProducer(cfg.KafkaBrokers)
+	defer producer.Close()
+
 	hub := signaling.NewHub()
-	h := handler.New(database, presence, hub, store, cfg)
+	h := handler.New(database, presence, hub, store, producer, cfg)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", h.Healthz)

@@ -28,9 +28,17 @@ export default function ChannelPage({ params }: { params: Promise<{ slug: string
 
   useEffect(() => {
     if (!isOwner || !token) return;
-    listSubscribers(token, slug)
-      .then((subs) => setSubscriberCount(subs.length))
-      .catch(() => {});
+    function refreshSubscriberCount() {
+      listSubscribers(token!, slug)
+        .then((subs) => setSubscriberCount(subs.length))
+        .catch(() => {});
+    }
+    refreshSubscriberCount();
+    // polled, not just fetched once, so a new subscriber shows up here
+    // without a manual page reload -- same 5s cadence as the stream/
+    // channel refresh() below.
+    const interval = setInterval(refreshSubscriberCount, 5000);
+    return () => clearInterval(interval);
   }, [isOwner, token, slug]);
 
   async function refresh() {

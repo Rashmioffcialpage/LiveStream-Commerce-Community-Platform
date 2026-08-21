@@ -5,6 +5,7 @@ const STREAM_URL = process.env.NEXT_PUBLIC_STREAM_URL!;
 const CHAT_URL = process.env.NEXT_PUBLIC_CHAT_URL!;
 const SUBSCRIPTION_URL = process.env.NEXT_PUBLIC_SUBSCRIPTION_URL!;
 const COMMERCE_URL = process.env.NEXT_PUBLIC_COMMERCE_URL!;
+const NOTIFICATION_URL = process.env.NEXT_PUBLIC_NOTIFICATION_URL!;
 
 export class ApiError extends Error {
   constructor(
@@ -232,4 +233,31 @@ export function sendGift(token: string, slug: string, giftType: string): Promise
     headers: authHeader(token),
     body: JSON.stringify({ gift_type: giftType }),
   });
+}
+
+// --- notification-service ---
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  type: "new_subscriber" | "gift_received" | "stream_started";
+  title: string;
+  body: string;
+  read_at?: string;
+  created_at: string;
+}
+
+export function listNotifications(token: string): Promise<Notification[]> {
+  return request(`${NOTIFICATION_URL}/notifications`, { headers: authHeader(token) });
+}
+
+export function markNotificationRead(token: string, id: string): Promise<Notification> {
+  return request(`${NOTIFICATION_URL}/notifications/${id}/read`, {
+    method: "POST",
+    headers: authHeader(token),
+  });
+}
+
+export function notificationsWsUrl(token: string): string {
+  return `${NOTIFICATION_URL.replace("http", "ws")}/notifications/ws?token=${encodeURIComponent(token)}`;
 }

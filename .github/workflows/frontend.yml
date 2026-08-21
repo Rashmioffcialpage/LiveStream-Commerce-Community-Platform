@@ -38,3 +38,4 @@ jobs:
         NEXT_PUBLIC_CHAT_URL: http://localhost:8082
         NEXT_PUBLIC_SUBSCRIPTION_URL: http://localhost:8083
         NEXT_PUBLIC_COMMERCE_URL: http://localhost:8086
+        NEXT_PUBLIC_NOTIFICATION_URL: http://localhost:8087

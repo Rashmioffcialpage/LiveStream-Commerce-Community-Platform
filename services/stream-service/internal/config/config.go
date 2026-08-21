@@ -3,10 +3,11 @@ package config
 import "os"
 
 type Config struct {
-	Port        string
-	DatabaseURL string
-	RedisURL    string
-	JWTSecret   string
+	Port         string
+	DatabaseURL  string
+	RedisURL     string
+	JWTSecret    string
+	KafkaBrokers string
 
 	// S3-compatible object storage for stream recordings. Points at MinIO
 	// locally; in production this is just AWS S3 with S3Endpoint unset
@@ -27,6 +28,8 @@ func Load() Config {
 		// must match auth-service's JWT_SECRET -- stream-service verifies
 		// tokens it never issues, it doesn't mint its own.
 		JWTSecret: getEnv("JWT_SECRET", "dev-secret-change-me"),
+
+		KafkaBrokers: getEnv("KAFKA_BROKERS", "localhost:9192"),
 
 		S3Endpoint:       os.Getenv("S3_ENDPOINT"), // empty = real AWS S3
 		S3PublicEndpoint: getEnv("S3_PUBLIC_ENDPOINT", "http://localhost:9002"),

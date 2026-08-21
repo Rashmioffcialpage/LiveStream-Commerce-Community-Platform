@@ -45,6 +45,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", h.Healthz)
+	mux.HandleFunc("GET /internal/channels/{id}/subscribers", h.ListSubscribersInternal)
 
 	authed := auth.RequireAuth(cfg.JWTSecret)
 	mux.Handle("POST /channels/{slug}/subscribe", authed(http.HandlerFunc(h.Subscribe)))

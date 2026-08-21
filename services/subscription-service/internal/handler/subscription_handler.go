@@ -90,7 +90,7 @@ func (h *Handler) Subscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.emitEvent(r.Context(), "subscribed", sub.ID, sub.SubscriberID, sub.ChannelID)
+	h.emitEvent(r.Context(), "subscribed", sub.ID, sub.SubscriberID, sub.ChannelID, channel.CreatorID)
 	writeJSON(w, http.StatusCreated, sub)
 }
 
@@ -113,6 +113,21 @@ func (h *Handler) ListSubscribers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	subs, err := h.DB.ListActiveSubscribersByChannel(r.Context(), channel.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not list subscribers")
+		return
+	}
+	writeJSON(w, http.StatusOK, subs)
+}
+
+// ListSubscribersInternal is for service-to-service lookups
+// (notification-service fanning out a "stream started" notification to
+// every active subscriber, given only a channel_id from a Kafka event).
+// Not authenticated -- internal-only by convention, same as
+// stream-service's GET /internal/channels/{id}.
+func (h *Handler) ListSubscribersInternal(w http.ResponseWriter, r *http.Request) {
+	channelID := r.PathValue("id")
+	subs, err := h.DB.ListActiveSubscribersByChannel(r.Context(), channelID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not list subscribers")
 		return
@@ -158,13 +173,14 @@ func (h *Handler) CancelSubscription(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.emitEvent(r.Context(), "cancelled", cancelled.ID, cancelled.SubscriberID, cancelled.ChannelID)
+	h.emitEvent(r.Context(), "cancelled", cancelled.ID, cancelled.SubscriberID, cancelled.ChannelID, "")
 	writeJSON(w, http.StatusOK, cancelled)
 }
 
-func (h *Handler) emitEvent(ctx context.Context, eventType, subID, subscriberID, channelID string) {
+func (h *Handler) emitEvent(ctx context.Context, eventType, subID, subscriberID, channelID, creatorID string) {
 	payload, _ := json.Marshal(map[string]string{
-		"type": eventType, "subscription_id": subID, "subscriber_id": subscriberID, "channel_id": channelID,
+		"type": eventType, "subscription_id": subID, "subscriber_id": subscriberID,
+		"channel_id": channelID, "creator_id": creatorID,
 	})
 	if err := h.Producer.Produce(ctx, []byte(channelID), payload); err != nil {
 		slog.Error("emit subscription event", "type", eventType, "err", err)

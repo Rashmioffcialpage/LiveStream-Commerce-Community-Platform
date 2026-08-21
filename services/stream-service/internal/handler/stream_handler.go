@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -116,6 +117,17 @@ func (h *Handler) GoLive(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not go live")
 		return
 	}
+
+	if channel, chErr := h.DB.GetChannelByID(r.Context(), stream.ChannelID); chErr == nil {
+		payload, _ := json.Marshal(map[string]string{
+			"type": "stream-started", "stream_id": stream.ID,
+			"channel_id": stream.ChannelID, "creator_id": channel.CreatorID, "title": stream.Title,
+		})
+		if err := h.Producer.Produce(r.Context(), []byte(stream.ChannelID), payload); err != nil {
+			slog.Error("emit stream-started event", "err", err)
+		}
+	}
+
 	writeJSON(w, http.StatusOK, stream)
 }
 

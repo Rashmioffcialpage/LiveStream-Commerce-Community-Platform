@@ -47,6 +47,7 @@ func main() {
 	mux.HandleFunc("GET /oauth/google/callback", h.GoogleCallback)
 
 	mux.Handle("GET /me", auth.RequireAuth(cfg.JWTSecret)(http.HandlerFunc(h.Me)))
+	mux.HandleFunc("GET /internal/users/{id}", h.GetUserInternal)
 
 	creatorOnly := auth.RequireAuth(cfg.JWTSecret)(auth.RequireRole(model.RoleCreator)(http.HandlerFunc(h.CreatorOnlyPing)))
 	mux.Handle("GET /creator/ping", creatorOnly)

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
+import { NotificationBell } from "./NotificationBell";
 
 export function NavBar() {
   const { user, loading, logout } = useAuth();
@@ -22,6 +23,7 @@ export function NavBar() {
                 Create channel
               </Link>
             )}
+            <NotificationBell />
             <button onClick={logout} className="text-muted hover:text-foreground">
               Sign out
             </button>

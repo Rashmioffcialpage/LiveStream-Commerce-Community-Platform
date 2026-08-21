@@ -6,14 +6,14 @@ import (
 )
 
 type Config struct {
-	Port                string
-	DatabaseURL          string
-	JWTSecret            string
-	AccessTokenTTL       time.Duration
-	RefreshTokenTTL      time.Duration
-	GoogleClientID       string
-	GoogleClientSecret   string
-	GoogleRedirectURL    string
+	Port               string
+	DatabaseURL        string
+	JWTSecret          string
+	AccessTokenTTL     time.Duration
+	RefreshTokenTTL    time.Duration
+	GoogleClientID     string
+	GoogleClientSecret string
+	GoogleRedirectURL  string
 }
 
 func Load() Config {
