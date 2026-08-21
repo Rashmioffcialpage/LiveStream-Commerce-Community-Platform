@@ -1,11 +1,12 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import { ApiError, createStream, endStream, getChannel, goLive, listChannelStreams } from "@/lib/api";
+import { ApiError, createStream, endStream, getChannel, goLive, listChannelStreams, listSubscribers } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useViewerCount } from "@/lib/use-viewer-count";
 import { ChatPanel } from "@/components/ChatPanel";
 import { PastStreamRow } from "@/components/PastStreamRow";
+import { SubscribeButton } from "@/components/SubscribeButton";
 import type { Channel, Stream } from "@/lib/types";
 
 export default function ChannelPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -18,9 +19,18 @@ export default function ChannelPage({ params }: { params: Promise<{ slug: string
   const [newTitle, setNewTitle] = useState("");
   const [busy, setBusy] = useState(false);
 
+  const [subscriberCount, setSubscriberCount] = useState<number | null>(null);
+
   const liveStream = streams.find((s) => s.status === "live") ?? null;
   const isOwner = !!(user && channel && user.id === channel.creator_id);
   const viewerCount = useViewerCount(liveStream?.id ?? null);
+
+  useEffect(() => {
+    if (!isOwner || !token) return;
+    listSubscribers(token, slug)
+      .then((subs) => setSubscriberCount(subs.length))
+      .catch(() => {});
+  }, [isOwner, token, slug]);
 
   async function refresh() {
     try {
@@ -78,13 +88,19 @@ export default function ChannelPage({ params }: { params: Promise<{ slug: string
           <h1 className="text-2xl font-semibold">{channel.name}</h1>
           {channel.category && <p className="text-xs text-muted mt-1">{channel.category}</p>}
           {channel.description && <p className="text-sm text-muted mt-2">{channel.description}</p>}
+          {isOwner && subscriberCount !== null && (
+            <p className="text-xs text-accent mt-2">{subscriberCount} subscriber{subscriberCount === 1 ? "" : "s"}</p>
+          )}
         </div>
-        {liveStream && (
-          <div className="text-right">
-            <span className="bg-danger text-white text-xs font-semibold px-2 py-1 rounded">LIVE</span>
-            <div className="text-sm text-muted mt-1">{viewerCount} watching</div>
-          </div>
-        )}
+        <div className="text-right flex flex-col items-end gap-2">
+          {liveStream && (
+            <div>
+              <span className="bg-danger text-white text-xs font-semibold px-2 py-1 rounded">LIVE</span>
+              <div className="text-sm text-muted mt-1">{viewerCount} watching</div>
+            </div>
+          )}
+          {!isOwner && <SubscribeButton channelId={channel.id} slug={channel.slug} />}
+        </div>
       </div>
 
       {isOwner && (

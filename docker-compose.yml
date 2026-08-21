@@ -193,9 +193,88 @@ services:
       stream-service:
         condition: service_started
 
+  # --- Task 4: subscription-service + payment-service ---
+  # payment-service is a simulated processor (see internal/handler in that
+  # service) -- no real card network, no real money. Its job is providing
+  # the same contract a real Stripe integration would (idempotent charges,
+  # a durable charges record, a success/decline outcome), so
+  # subscription-service's integration against it doesn't change shape
+  # when payment-service's internals eventually do.
+
+  payment-postgres:
+    image: postgres:16-alpine
+    container_name: livestream-payment-postgres
+    ports:
+      - "5437:5432"
+    environment:
+      POSTGRES_USER: payment
+      POSTGRES_PASSWORD: payment
+      POSTGRES_DB: payment
+    volumes:
+      - payment_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payment -d payment"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  payment-service:
+    build: ./services/payment-service
+    container_name: payment-service
+    ports:
+      - "8084:8084"
+    environment:
+      DATABASE_URL: postgres://payment:payment@payment-postgres:5432/payment?sslmode=disable
+      JWT_SECRET: local-dev-secret-do-not-use-in-prod
+      PORT: "8084"
+    depends_on:
+      payment-postgres:
+        condition: service_healthy
+
+  subscription-postgres:
+    image: postgres:16-alpine
+    container_name: livestream-subscription-postgres
+    ports:
+      - "5436:5432"
+    environment:
+      POSTGRES_USER: subscription
+      POSTGRES_PASSWORD: subscription
+      POSTGRES_DB: subscription
+    volumes:
+      - subscription_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U subscription -d subscription"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  subscription-service:
+    build: ./services/subscription-service
+    container_name: subscription-service
+    ports:
+      - "8083:8083"
+    environment:
+      DATABASE_URL: postgres://subscription:subscription@subscription-postgres:5432/subscription?sslmode=disable
+      JWT_SECRET: local-dev-secret-do-not-use-in-prod
+      KAFKA_BROKERS: kafka:9092
+      STREAM_SERVICE_URL: http://stream-service:8081
+      PAYMENT_SERVICE_URL: http://payment-service:8084
+      PORT: "8083"
+    depends_on:
+      subscription-postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      stream-service:
+        condition: service_started
+      payment-service:
+        condition: service_started
+
 volumes:
   auth_postgres_data:
   stream_postgres_data:
   chat_postgres_data:
   kafka_data:
   minio_data:
+  payment_postgres_data:
+  subscription_postgres_data:

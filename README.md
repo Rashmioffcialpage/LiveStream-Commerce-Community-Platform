@@ -44,7 +44,7 @@ CloudFront) — local first, cloud once the local system is solid.
 | 2 | `stream-service` — channels, scheduling, WebRTC signaling | ✅ done | [docs/task-2-stream-service.md](docs/task-2-stream-service.md) |
 | 3 | `chat-service` — WebSocket chat, Redis fan-out, Kafka history | ✅ done | [docs/task-3-chat-service.md](docs/task-3-chat-service.md) |
 | — | `frontend` — Next.js web client (channel page, live chat, viewer count) | ✅ done | [docs/task-frontend.md](docs/task-frontend.md) |
-| 4 | `subscription-service` + `payment-service` | not started | |
+| 4 | `subscription-service` + `payment-service` | ✅ done | [docs/task-4-subscriptions-payments.md](docs/task-4-subscriptions-payments.md) |
 | 5 | `commerce-service` — wallet, virtual gifts, creator balance | not started | |
 | 6 | `notification-service` — Kafka + WebSocket + email | not started | |
 | 7 | search (OpenSearch) | not started | |
@@ -64,6 +64,8 @@ docker compose up -d --build
 - auth-service: http://localhost:8080 · Postgres: localhost:5433
 - stream-service: http://localhost:8081 · Postgres: localhost:5434 · Redis: localhost:6381
 - chat-service: http://localhost:8082 · Postgres: localhost:5435 · Redis: localhost:6382
+- subscription-service: http://localhost:8083 · Postgres: localhost:5436
+- payment-service: http://localhost:8084 · Postgres: localhost:5437
 - Kafka: localhost:9194
 - MinIO (S3-compatible, stream recordings): localhost:9002 (API) · localhost:9003 (console, minioadmin/minioadmin)
 
@@ -101,6 +103,8 @@ live, and chat, all through the actual UI.
 cd services/auth-service && go build ./... && go vet ./...
 cd services/stream-service && go build ./... && go vet ./...
 cd services/chat-service && go build ./... && go vet ./...
+cd services/subscription-service && go build ./... && go vet ./...
+cd services/payment-service && go build ./... && go vet ./...
 cd frontend && npm run build  # runs its own type check; see docs/task-frontend.md if you also want a standalone `tsc --noEmit`, which needs a prior build to see Next's generated route types
 ```
 

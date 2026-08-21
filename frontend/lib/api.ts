@@ -1,8 +1,9 @@
-import type { AuthResponse, Channel, ChatMessage, Stream, User } from "./types";
+import type { AuthResponse, Channel, ChatMessage, Stream, Subscription, User } from "./types";
 
 const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL!;
 const STREAM_URL = process.env.NEXT_PUBLIC_STREAM_URL!;
 const CHAT_URL = process.env.NEXT_PUBLIC_CHAT_URL!;
+const SUBSCRIPTION_URL = process.env.NEXT_PUBLIC_SUBSCRIPTION_URL!;
 
 export class ApiError extends Error {
   constructor(
@@ -159,6 +160,35 @@ export function muteUser(
 export function deleteMessage(token: string, messageId: string): Promise<ChatMessage> {
   return request(`${CHAT_URL}/messages/${messageId}`, {
     method: "DELETE",
+    headers: authHeader(token),
+  });
+}
+
+// --- subscription-service ---
+
+export function subscribeToChannel(token: string, slug: string): Promise<Subscription> {
+  return request(`${SUBSCRIPTION_URL}/channels/${slug}/subscribe`, {
+    method: "POST",
+    headers: authHeader(token),
+    body: JSON.stringify({}),
+  });
+}
+
+export function listSubscribers(token: string, slug: string): Promise<Subscription[]> {
+  return request(`${SUBSCRIPTION_URL}/channels/${slug}/subscribers`, {
+    headers: authHeader(token),
+  });
+}
+
+export function mySubscriptions(token: string): Promise<Subscription[]> {
+  return request(`${SUBSCRIPTION_URL}/me/subscriptions`, {
+    headers: authHeader(token),
+  });
+}
+
+export function cancelSubscription(token: string, id: string): Promise<Subscription> {
+  return request(`${SUBSCRIPTION_URL}/subscriptions/${id}/cancel`, {
+    method: "POST",
     headers: authHeader(token),
   });
 }

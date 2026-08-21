@@ -43,6 +43,19 @@ export interface Stream {
 
 export type ChatMessageType = "message" | "reaction";
 
+export type SubscriptionStatus = "active" | "cancelled";
+
+export interface Subscription {
+  id: string;
+  subscriber_id: string;
+  channel_id: string;
+  status: SubscriptionStatus;
+  charge_id: string;
+  current_period_end: string;
+  created_at: string;
+  cancelled_at?: string;
+}
+
 export interface ChatMessage {
   id: string;
   stream_id: string;
