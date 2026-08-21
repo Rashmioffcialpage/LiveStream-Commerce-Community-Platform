@@ -7,6 +7,7 @@ import { useViewerCount } from "@/lib/use-viewer-count";
 import { ChatPanel } from "@/components/ChatPanel";
 import { PastStreamRow } from "@/components/PastStreamRow";
 import { SubscribeButton } from "@/components/SubscribeButton";
+import { GiftPanel } from "@/components/GiftPanel";
 import type { Channel, Stream } from "@/lib/types";
 
 export default function ChannelPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -151,13 +152,16 @@ export default function ChannelPage({ params }: { params: Promise<{ slug: string
           )}
         </div>
 
-        {liveStream ? (
-          <ChatPanel streamId={liveStream.id} isLive={true} />
-        ) : (
-          <div className="bg-surface border border-border rounded-lg p-4 text-sm text-muted">
-            Chat opens when this channel goes live.
-          </div>
-        )}
+        <div>
+          {liveStream ? (
+            <ChatPanel streamId={liveStream.id} isLive={true} />
+          ) : (
+            <div className="bg-surface border border-border rounded-lg p-4 text-sm text-muted">
+              Chat opens when this channel goes live.
+            </div>
+          )}
+          <GiftPanel slug={slug} isOwner={isOwner} />
+        </div>
       </div>
 
       {streams.filter((s) => s.status === "ended").length > 0 && (

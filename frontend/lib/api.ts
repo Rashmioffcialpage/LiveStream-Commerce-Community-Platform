@@ -4,6 +4,7 @@ const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL!;
 const STREAM_URL = process.env.NEXT_PUBLIC_STREAM_URL!;
 const CHAT_URL = process.env.NEXT_PUBLIC_CHAT_URL!;
 const SUBSCRIPTION_URL = process.env.NEXT_PUBLIC_SUBSCRIPTION_URL!;
+const COMMERCE_URL = process.env.NEXT_PUBLIC_COMMERCE_URL!;
 
 export class ApiError extends Error {
   constructor(
@@ -190,5 +191,45 @@ export function cancelSubscription(token: string, id: string): Promise<Subscript
   return request(`${SUBSCRIPTION_URL}/subscriptions/${id}/cancel`, {
     method: "POST",
     headers: authHeader(token),
+  });
+}
+
+// --- commerce-service ---
+
+export interface Wallet {
+  user_id: string;
+  coin_balance: number;
+  updated_at: string;
+}
+
+export interface Gift {
+  id: string;
+  sender_id: string;
+  recipient_id: string;
+  channel_id: string;
+  gift_type: string;
+  coin_cost: number;
+  created_at: string;
+}
+
+export const GIFT_CATALOG: Record<string, number> = { rose: 10, heart: 50, diamond: 500, rocket: 1000 };
+
+export function getWallet(token: string): Promise<Wallet> {
+  return request(`${COMMERCE_URL}/wallet`, { headers: authHeader(token) });
+}
+
+export function buyCoins(token: string, coins: number): Promise<Wallet> {
+  return request(`${COMMERCE_URL}/wallet/buy-coins`, {
+    method: "POST",
+    headers: authHeader(token),
+    body: JSON.stringify({ coins }),
+  });
+}
+
+export function sendGift(token: string, slug: string, giftType: string): Promise<Gift> {
+  return request(`${COMMERCE_URL}/channels/${slug}/gift`, {
+    method: "POST",
+    headers: authHeader(token),
+    body: JSON.stringify({ gift_type: giftType }),
   });
 }

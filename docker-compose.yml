@@ -270,6 +270,51 @@ services:
       payment-service:
         condition: service_started
 
+  # --- Task 5: commerce-service ---
+  # wallet (spendable, bought with real money via payment-service) +
+  # creator earned balance (accumulated from gifts) + gift transaction
+  # history. Same payment-service/stream-service integration pattern as
+  # subscription-service.
+
+  commerce-postgres:
+    image: postgres:16-alpine
+    container_name: livestream-commerce-postgres
+    ports:
+      - "5438:5432"
+    environment:
+      POSTGRES_USER: commerce
+      POSTGRES_PASSWORD: commerce
+      POSTGRES_DB: commerce
+    volumes:
+      - commerce_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U commerce -d commerce"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  commerce-service:
+    build: ./services/commerce-service
+    container_name: commerce-service
+    ports:
+      - "8086:8086"
+    environment:
+      DATABASE_URL: postgres://commerce:commerce@commerce-postgres:5432/commerce?sslmode=disable
+      JWT_SECRET: local-dev-secret-do-not-use-in-prod
+      KAFKA_BROKERS: kafka:9092
+      STREAM_SERVICE_URL: http://stream-service:8081
+      PAYMENT_SERVICE_URL: http://payment-service:8084
+      PORT: "8086"
+    depends_on:
+      commerce-postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      stream-service:
+        condition: service_started
+      payment-service:
+        condition: service_started
+
 volumes:
   auth_postgres_data:
   stream_postgres_data:
@@ -278,3 +323,4 @@ volumes:
   minio_data:
   payment_postgres_data:
   subscription_postgres_data:
+  commerce_postgres_data:
