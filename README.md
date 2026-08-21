@@ -12,24 +12,8 @@ implemented, run, and verified end to end before the next one starts.
 ## Target architecture
 
 ```
-                    Next.js React Frontend
-                               |
-                         API Gateway
-                               |
-        +----------------------+----------------------+
-        |                      |                       |
-   Auth Service          Stream Service            Commerce
-        |                      |                       |
-   PostgreSQL               Redis                  PostgreSQL
-                               |
-                             Kafka
-                               |
-              +----------------+----------------+
-              |                |                |
-         Chat Service     Notification      Analytics
-              |                |                |
-          WebSocket           Email          ClickHouse
-```
+<img width="1536" height="1024" alt="ChatGPT Image Aug 20, 2026, 10_30_24 PM" src="https://github.com/user-attachments/assets/9137ec6e-b4eb-4c09-87f5-cc0d6bf46790" />
+
 
 Frontend: Next.js + TypeScript + Tailwind + React Query + WebSockets.
 Backend: Go microservices. Data: PostgreSQL, Redis, Kafka, OpenSearch,
