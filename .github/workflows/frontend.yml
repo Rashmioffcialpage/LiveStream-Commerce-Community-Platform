@@ -23,9 +23,10 @@ jobs:
 
     - run: npm ci
 
-    - name: Typecheck
-      run: npx tsc --noEmit
-
+    # next build runs its own TypeScript check as part of the build (it
+    # needs to anyway, to generate the ambient route types like
+    # LayoutProps that a standalone `tsc --noEmit` can't see until a build
+    # has run at least once) -- no separate typecheck step needed.
     - name: Build
       run: npm run build
       env:
