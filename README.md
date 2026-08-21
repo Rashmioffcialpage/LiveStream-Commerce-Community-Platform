@@ -28,7 +28,7 @@ implemented, run, and verified end to end before the next one starts.
 | 6 | `notification-service` — Kafka + WebSocket + email | ✅ done | [docs/task-6-notification-service.md](docs/task-6-notification-service.md) |
 | 7 | `search-service` — creator/category/stream-title/tag search (OpenSearch) | ✅ done | [docs/task-7-search.md](docs/task-7-search.md) |
 | 8 | `recommendation-service` — feature pipeline, Redis-scored feed | ✅ done | [docs/task-8-recommendation-service.md](docs/task-8-recommendation-service.md) |
-| 9 | Kubernetes + AWS deployment | not started | |
+| 9 | Kubernetes + AWS deployment | ✅ done | [docs/task-9-deployment.md](docs/task-9-deployment.md) |
 
 Each task's write-up (endpoints, design decisions, what was verified and
 how) lives in its own file under [docs/](docs/) rather than in this
@@ -100,3 +100,41 @@ running stack, documented in each task's writeup under [docs/](docs/). A
 real unit-test suite (`pgxmock` for the Go services' DB layers) is worth
 adding before this grows much further — flagged here rather than silently
 deferred indefinitely.
+
+## Running on Kubernetes / AWS EKS
+
+Against any cluster (local kind/minikube, or a cloud one you already have):
+
+```bash
+kubectl apply -f infra/k8s/00-namespace.yaml
+kubectl apply -f infra/k8s/
+```
+
+To provision the EKS cluster + RDS/ElastiCache/ECR this section describes
+from scratch, `infra/aws/` has the Terraform for it —
+see [infra/aws/README.md](infra/aws/README.md) (note: this creates billed
+AWS resources; nothing runs `terraform apply` on its own).
+
+Production notes baked into the manifests — full detail in
+[docs/task-9-deployment.md](docs/task-9-deployment.md):
+
+- **Postgres / Redis** are demo-grade in-cluster StatefulSets, one per
+  service. On EKS, prefer **Amazon RDS** and **ElastiCache** (`infra/aws/rds.tf`, `elasticache.tf`).
+- **Kafka, OpenSearch, and MinIO** stay self-hosted in-cluster StatefulSets
+  even on EKS — Amazon MSK / OpenSearch Service / real S3 are the upgrade
+  paths if that changes.
+- **Ingress** (`infra/k8s/15-ingress.yaml`) routes by subdomain, one per
+  service the browser calls directly — needs the **AWS Load Balancer
+  Controller** installed (Helm + IRSA, not an EKS managed add-on).
+- **Autoscaling**: HPAs scale every service on CPU utilization, 2-3 →
+  8-10 replicas.
+- The frontend's `NEXT_PUBLIC_*` URLs are baked in at **Docker build
+  time**, not read at container start (`frontend/Dockerfile`) — rebuild
+  the image if the Ingress's public hostnames change.
+- Container images referenced (`rashmioffcialpage/*:latest`) assume you
+  build and push `services/*/Dockerfile` and `frontend/Dockerfile` to your
+  own registry first.
+
+`infra/k8s/*.yaml` is validated with `kubeconform -strict` and
+`infra/aws/*.tf` with `terraform validate` on every push/PR
+(`.github/workflows/infra.yml`).

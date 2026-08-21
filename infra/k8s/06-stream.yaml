@@ -1,0 +1,231 @@
+# Task 2: stream-service. Own Postgres + Redis, like auth-service --
+# shares only JWT_SECRET and Kafka/MinIO with the rest of the platform.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: stream-postgres-secret
+  namespace: livestream
+type: Opaque
+stringData:
+  POSTGRES_USER: stream
+  POSTGRES_PASSWORD: stream
+  POSTGRES_DB: stream
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: stream-postgres
+  namespace: livestream
+spec:
+  serviceName: stream-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stream-postgres
+  template:
+    metadata:
+      labels:
+        app: stream-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: stream-postgres-secret
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "stream", "-d", "stream"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stream-postgres
+  namespace: livestream
+spec:
+  clusterIP: None
+  selector:
+    app: stream-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: stream-redis
+  namespace: livestream
+spec:
+  serviceName: stream-redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stream-redis
+  template:
+    metadata:
+      labels:
+        app: stream-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stream-redis
+  namespace: livestream
+spec:
+  clusterIP: None
+  selector:
+    app: stream-redis
+  ports:
+    - port: 6379
+      targetPort: 6379
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stream-service
+  namespace: livestream
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: stream-service
+  template:
+    metadata:
+      labels:
+        app: stream-service
+    spec:
+      containers:
+        - name: stream-service
+          image: rashmioffcialpage/stream-service:latest
+          ports:
+            - containerPort: 8081
+          envFrom:
+            - configMapRef:
+                name: platform-config
+          env:
+            - name: DATABASE_URL
+              value: "postgres://stream:stream@stream-postgres:5432/stream?sslmode=disable"
+            - name: REDIS_URL
+              value: "redis://stream-redis:6379/0"
+            - name: PORT
+              value: "8081"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secret
+                  key: JWT_SECRET
+            - name: S3_ENDPOINT
+              value: "http://minio:9000"
+            # S3_PUBLIC_ENDPOINT is the URL browsers use to fetch recordings
+            # directly, so it can't be the in-cluster minio address -- needs
+            # a real ingress/LoadBalancer hostname for minio (or, on AWS,
+            # the real S3/CloudFront URL once S3_ENDPOINT switches to S3).
+            # Placeholder here; override per-environment.
+            - name: S3_PUBLIC_ENDPOINT
+              value: "http://minio.example.com"
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: MINIO_ROOT_USER
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: MINIO_ROOT_PASSWORD
+            - name: S3_BUCKET
+              value: "recordings"
+            - name: S3_REGION
+              value: "us-east-1"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stream-service
+  namespace: livestream
+spec:
+  selector:
+    app: stream-service
+  ports:
+    - name: http
+      port: 8081
+      targetPort: 8081
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: stream-service
+  namespace: livestream
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: stream-service
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

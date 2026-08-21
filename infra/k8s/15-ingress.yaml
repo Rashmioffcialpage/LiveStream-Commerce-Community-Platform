@@ -1,0 +1,120 @@
+# One ALB, host-based routing per service -- the frontend calls each
+# backend directly from the browser (see frontend/lib/api.ts), not through
+# a shared API gateway path prefix, so each service gets its own subdomain
+# rather than a /api/<service> path that would need rewriting to match
+# each Go service's own root-level routes (e.g. POST /signup, not POST
+# /api/auth/signup). payment-service has no rule -- it's never called from
+# the browser, only server-to-server by subscription-service/commerce-service.
+#
+# Requires the AWS Load Balancer Controller add-on on EKS
+# (https://kubernetes-sigs.github.io/aws-load-balancer-controller/) and DNS
+# records pointing every host below at the ALB's address once provisioned.
+# ALB passes the WebSocket Upgrade header through natively -- chat-service
+# and notification-service need no extra annotation for that.
+#
+# livestream.example.com is a placeholder; point real DNS at it (and
+# rebuild the frontend image with matching NEXT_PUBLIC_*_URL build args --
+# see frontend/Dockerfile) before this is anything but a reference.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: livestream
+  namespace: livestream
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}, {"HTTP":80}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+spec:
+  rules:
+    - host: livestream.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 3000
+    - host: auth.livestream.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 8080
+    - host: stream.livestream.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: stream-service
+                port:
+                  number: 8081
+    - host: chat.livestream.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: chat-service
+                port:
+                  number: 8082
+    - host: subscription.livestream.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: subscription-service
+                port:
+                  number: 8083
+    - host: commerce.livestream.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: commerce-service
+                port:
+                  number: 8086
+    - host: notification.livestream.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: notification-service
+                port:
+                  number: 8087
+    - host: search.livestream.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: search-service
+                port:
+                  number: 8088
+    - host: recommendation.livestream.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: recommendation-service
+                port:
+                  number: 8089

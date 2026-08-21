@@ -1,0 +1,160 @@
+# Task 4: subscription-service. Calls stream-service (resolve channel) and
+# payment-service (charge) synchronously, and publishes subscription-events
+# to Kafka for notification-service/recommendation-service to react to.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: subscription-postgres-secret
+  namespace: livestream
+type: Opaque
+stringData:
+  POSTGRES_USER: subscription
+  POSTGRES_PASSWORD: subscription
+  POSTGRES_DB: subscription
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: subscription-postgres
+  namespace: livestream
+spec:
+  serviceName: subscription-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: subscription-postgres
+  template:
+    metadata:
+      labels:
+        app: subscription-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: subscription-postgres-secret
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "subscription", "-d", "subscription"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: subscription-postgres
+  namespace: livestream
+spec:
+  clusterIP: None
+  selector:
+    app: subscription-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: subscription-service
+  namespace: livestream
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: subscription-service
+  template:
+    metadata:
+      labels:
+        app: subscription-service
+    spec:
+      containers:
+        - name: subscription-service
+          image: rashmioffcialpage/subscription-service:latest
+          ports:
+            - containerPort: 8083
+          envFrom:
+            - configMapRef:
+                name: platform-config
+          env:
+            - name: DATABASE_URL
+              value: "postgres://subscription:subscription@subscription-postgres:5432/subscription?sslmode=disable"
+            - name: PORT
+              value: "8083"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secret
+                  key: JWT_SECRET
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8083
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8083
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: subscription-service
+  namespace: livestream
+spec:
+  selector:
+    app: subscription-service
+  ports:
+    - name: http
+      port: 8083
+      targetPort: 8083
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: subscription-service
+  namespace: livestream
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: subscription-service
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

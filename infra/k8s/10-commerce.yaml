@@ -1,0 +1,159 @@
+# Task 5: commerce-service. Wallet + virtual gifts + creator balance. Same
+# stream-service/payment-service integration pattern as subscription-service.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: commerce-postgres-secret
+  namespace: livestream
+type: Opaque
+stringData:
+  POSTGRES_USER: commerce
+  POSTGRES_PASSWORD: commerce
+  POSTGRES_DB: commerce
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: commerce-postgres
+  namespace: livestream
+spec:
+  serviceName: commerce-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: commerce-postgres
+  template:
+    metadata:
+      labels:
+        app: commerce-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: commerce-postgres-secret
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "commerce", "-d", "commerce"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: commerce-postgres
+  namespace: livestream
+spec:
+  clusterIP: None
+  selector:
+    app: commerce-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: commerce-service
+  namespace: livestream
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: commerce-service
+  template:
+    metadata:
+      labels:
+        app: commerce-service
+    spec:
+      containers:
+        - name: commerce-service
+          image: rashmioffcialpage/commerce-service:latest
+          ports:
+            - containerPort: 8086
+          envFrom:
+            - configMapRef:
+                name: platform-config
+          env:
+            - name: DATABASE_URL
+              value: "postgres://commerce:commerce@commerce-postgres:5432/commerce?sslmode=disable"
+            - name: PORT
+              value: "8086"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secret
+                  key: JWT_SECRET
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8086
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8086
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: commerce-service
+  namespace: livestream
+spec:
+  selector:
+    app: commerce-service
+  ports:
+    - name: http
+      port: 8086
+      targetPort: 8086
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: commerce-service
+  namespace: livestream
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: commerce-service
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

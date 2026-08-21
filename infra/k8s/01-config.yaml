@@ -1,0 +1,33 @@
+# Shared, non-sensitive config every service can pull from -- mirrors the
+# repeated env vars in docker-compose.yml (KAFKA_BROKERS, the internal
+# service-to-service URLs) so no Deployment hardcodes another service's
+# address twice. Each service's own DATABASE_URL/REDIS_URL stays in its own
+# manifest file next to the datastore it points at, since those pairs only
+# ever change together.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: platform-config
+  namespace: livestream
+data:
+  KAFKA_BROKERS: "kafka:9092"
+  AUTH_SERVICE_URL: "http://auth-service:8080"
+  STREAM_SERVICE_URL: "http://stream-service:8081"
+  PAYMENT_SERVICE_URL: "http://payment-service:8084"
+  SUBSCRIPTION_SERVICE_URL: "http://subscription-service:8083"
+  OPENSEARCH_URL: "http://opensearch:9200"
+---
+# JWT_SECRET is the one thing every service needs and none of them own --
+# auth-service issues tokens, every other service only verifies them (see
+# each service's internal/auth/jwt.go). Real deployments should generate
+# this at cluster-bootstrap time and never let it live in git; the value
+# below matches docker-compose's local-dev default so `kubectl apply`
+# behaves the same as `docker compose up` until someone overrides it.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jwt-secret
+  namespace: livestream
+type: Opaque
+stringData:
+  JWT_SECRET: local-dev-secret-do-not-use-in-prod
