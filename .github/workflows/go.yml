@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [auth-service, stream-service, chat-service, payment-service, subscription-service, commerce-service, notification-service]
+        service: [auth-service, stream-service, chat-service, payment-service, subscription-service, commerce-service, notification-service, search-service]
     defaults:
       run:
         working-directory: services/${{ matrix.service }}

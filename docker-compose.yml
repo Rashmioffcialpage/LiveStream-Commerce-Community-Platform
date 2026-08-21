@@ -377,6 +377,55 @@ services:
       subscription-service:
         condition: service_started
 
+  # --- Task 7: search-service ---
+  # single-node OpenSearch, security plugin disabled -- this is local dev
+  # with no sensitive data in the index (channel name/category/creator
+  # name/stream titles, all already public), not a production posture.
+  # Pinned before 2.12, which made a strong initial admin password
+  # mandatory even with security disabled.
+
+  opensearch:
+    image: opensearchproject/opensearch:2.11.0
+    container_name: livestream-opensearch
+    environment:
+      discovery.type: single-node
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9201:9200"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+
+  search-service:
+    build: ./services/search-service
+    container_name: search-service
+    ports:
+      - "8088:8088"
+    environment:
+      OPENSEARCH_URL: http://opensearch:9200
+      KAFKA_BROKERS: kafka:9092
+      AUTH_SERVICE_URL: http://auth-service:8080
+      PORT: "8088"
+    depends_on:
+      opensearch:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+
 volumes:
   auth_postgres_data:
   stream_postgres_data:
@@ -387,3 +436,4 @@ volumes:
   subscription_postgres_data:
   commerce_postgres_data:
   notification_postgres_data:
+  opensearch_data:

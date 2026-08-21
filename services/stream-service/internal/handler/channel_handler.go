@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 
 	"stream-service/internal/auth"
 	"stream-service/internal/db"
+	"stream-service/internal/kafka"
 )
 
 var slugPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])?$`)
@@ -49,6 +51,16 @@ func (h *Handler) CreateChannel(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not create channel")
 		return
 	}
+
+	payload, _ := json.Marshal(map[string]string{
+		"type": "channel-created", "channel_id": channel.ID, "slug": channel.Slug,
+		"name": channel.Name, "category": channel.Category, "description": channel.Description,
+		"creator_id": channel.CreatorID,
+	})
+	if err := h.Producer.Produce(r.Context(), kafka.TopicChannel, []byte(channel.ID), payload); err != nil {
+		slog.Error("emit channel-created event", "err", err)
+	}
+
 	writeJSON(w, http.StatusCreated, channel)
 }
 

@@ -6,6 +6,7 @@ const CHAT_URL = process.env.NEXT_PUBLIC_CHAT_URL!;
 const SUBSCRIPTION_URL = process.env.NEXT_PUBLIC_SUBSCRIPTION_URL!;
 const COMMERCE_URL = process.env.NEXT_PUBLIC_COMMERCE_URL!;
 const NOTIFICATION_URL = process.env.NEXT_PUBLIC_NOTIFICATION_URL!;
+const SEARCH_URL = process.env.NEXT_PUBLIC_SEARCH_URL!;
 
 export class ApiError extends Error {
   constructor(
@@ -260,4 +261,22 @@ export function markNotificationRead(token: string, id: string): Promise<Notific
 
 export function notificationsWsUrl(token: string): string {
   return `${NOTIFICATION_URL.replace("http", "ws")}/notifications/ws?token=${encodeURIComponent(token)}`;
+}
+
+// --- search-service ---
+
+export interface SearchResult {
+  id: string;
+  slug: string;
+  name: string;
+  category: string;
+  description: string;
+  creator_id: string;
+  creator_name: string;
+  stream_titles: string[];
+  tags: string[];
+}
+
+export function searchChannels(query: string): Promise<SearchResult[]> {
+  return request(`${SEARCH_URL}/search?q=${encodeURIComponent(query)}`);
 }

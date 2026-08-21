@@ -9,6 +9,7 @@ import (
 
 	"stream-service/internal/auth"
 	"stream-service/internal/db"
+	"stream-service/internal/kafka"
 )
 
 type createStreamRequest struct {
@@ -44,6 +45,15 @@ func (h *Handler) CreateStream(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not schedule stream")
 		return
 	}
+
+	payload, _ := json.Marshal(map[string]any{
+		"type": "stream-created", "stream_id": stream.ID, "channel_id": stream.ChannelID,
+		"title": stream.Title, "tags": stream.Tags,
+	})
+	if err := h.Producer.Produce(r.Context(), kafka.TopicStream, []byte(stream.ChannelID), payload); err != nil {
+		slog.Error("emit stream-created event", "err", err)
+	}
+
 	writeJSON(w, http.StatusCreated, stream)
 }
 
@@ -123,7 +133,7 @@ func (h *Handler) GoLive(w http.ResponseWriter, r *http.Request) {
 			"type": "stream-started", "stream_id": stream.ID,
 			"channel_id": stream.ChannelID, "creator_id": channel.CreatorID, "title": stream.Title,
 		})
-		if err := h.Producer.Produce(r.Context(), []byte(stream.ChannelID), payload); err != nil {
+		if err := h.Producer.Produce(r.Context(), kafka.TopicStream, []byte(stream.ChannelID), payload); err != nil {
 			slog.Error("emit stream-started event", "err", err)
 		}
 	}
