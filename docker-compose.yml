@@ -426,6 +426,45 @@ services:
       auth-service:
         condition: service_started
 
+  # --- Task 8: recommendation-service ---
+  # User Events -> Kafka -> Feature Pipeline -> Recommendation Model ->
+  # Redis -> Personalized Home Feed, per the spec. Consumes user-events
+  # (new topic, view tracking added to stream-service), plus the
+  # already-existing subscription-events and gift-events -- no new
+  # producers needed for those two.
+
+  recommendation-redis:
+    image: redis:7-alpine
+    container_name: livestream-recommendation-redis
+    ports:
+      - "6384:6379"
+    volumes:
+      - recommendation_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  recommendation-service:
+    build: ./services/recommendation-service
+    container_name: recommendation-service
+    ports:
+      - "8089:8089"
+    environment:
+      REDIS_URL: redis://recommendation-redis:6379/0
+      KAFKA_BROKERS: kafka:9092
+      STREAM_SERVICE_URL: http://stream-service:8081
+      JWT_SECRET: local-dev-secret-do-not-use-in-prod
+      PORT: "8089"
+    depends_on:
+      recommendation-redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      stream-service:
+        condition: service_started
+
 volumes:
   auth_postgres_data:
   stream_postgres_data:
@@ -437,3 +476,4 @@ volumes:
   commerce_postgres_data:
   notification_postgres_data:
   opensearch_data:
+  recommendation_redis_data:

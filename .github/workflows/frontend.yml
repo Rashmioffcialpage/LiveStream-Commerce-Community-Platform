@@ -40,3 +40,4 @@ jobs:
         NEXT_PUBLIC_COMMERCE_URL: http://localhost:8086
         NEXT_PUBLIC_NOTIFICATION_URL: http://localhost:8087
         NEXT_PUBLIC_SEARCH_URL: http://localhost:8088
+        NEXT_PUBLIC_RECOMMENDATION_URL: http://localhost:8089

@@ -1,7 +1,7 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import { ApiError, createStream, endStream, getChannel, goLive, listChannelStreams, listSubscribers } from "@/lib/api";
+import { ApiError, createStream, endStream, getChannel, goLive, listChannelStreams, listSubscribers, recordView } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useViewerCount } from "@/lib/use-viewer-count";
 import { ChatPanel } from "@/components/ChatPanel";
@@ -57,6 +57,14 @@ export default function ChannelPage({ params }: { params: Promise<{ slug: string
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
+
+  useEffect(() => {
+    if (!token || !channel || isOwner) return;
+    // fire-and-forget -- feeds the recommendation feature pipeline, not
+    // something the page needs to wait on or show an error for
+    recordView(token, slug).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, token, !!channel, isOwner]);
 
   async function handleScheduleAndGoLive(e: React.FormEvent) {
     e.preventDefault();

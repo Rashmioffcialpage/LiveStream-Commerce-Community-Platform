@@ -2,12 +2,30 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { listChannels, searchChannels, type SearchResult } from "@/lib/api";
+import { getFeed, listChannels, searchChannels, type FeedItem, type SearchResult } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 import type { Channel } from "@/lib/types";
 
 export default function HomePage() {
+  const { token } = useAuth();
   const [channels, setChannels] = useState<Channel[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [feed, setFeed] = useState<FeedItem[] | null>(null);
+
+  useEffect(() => {
+    if (!token) {
+      setFeed(null);
+      return;
+    }
+    getFeed(token)
+      .then(setFeed)
+      .catch(() => setFeed(null)); // no feed section rather than an error banner -- this is a bonus, not core to the page
+  }, [token]);
+
+  // only worth a dedicated section once there's an actual signal to rank
+  // on -- a cold-start feed is identical to the full channel list below
+  const topPicks = feed?.filter((f) => f.score > 0).slice(0, 3) ?? [];
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[] | null>(null);
@@ -47,6 +65,25 @@ export default function HomePage() {
       </div>
 
       {error && <p className="text-danger text-sm">{error}</p>}
+
+      {!query.trim() && topPicks.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-medium text-muted mb-3">For You</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {topPicks.map((c) => (
+              <Link
+                key={c.id}
+                href={`/channel/${c.slug}`}
+                className="block bg-surface border border-accent/40 rounded-lg p-4 hover:border-accent transition-colors"
+              >
+                <div className="font-medium">{c.name}</div>
+                {c.category && <div className="text-xs text-muted mt-1">{c.category}</div>}
+                {c.description && <p className="text-sm text-muted mt-2 line-clamp-2">{c.description}</p>}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {query.trim() ? (
         <>

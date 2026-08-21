@@ -48,7 +48,7 @@ CloudFront) — local first, cloud once the local system is solid.
 | 5 | `commerce-service` — wallet, virtual gifts, creator balance | ✅ done | [docs/task-5-commerce-service.md](docs/task-5-commerce-service.md) |
 | 6 | `notification-service` — Kafka + WebSocket + email | ✅ done | [docs/task-6-notification-service.md](docs/task-6-notification-service.md) |
 | 7 | `search-service` — creator/category/stream-title/tag search (OpenSearch) | ✅ done | [docs/task-7-search.md](docs/task-7-search.md) |
-| 8 | `recommendation-service` — feature pipeline, model, Redis-served feed | not started | |
+| 8 | `recommendation-service` — feature pipeline, Redis-scored feed | ✅ done | [docs/task-8-recommendation-service.md](docs/task-8-recommendation-service.md) |
 | 9 | Kubernetes + AWS deployment | not started | |
 
 Each task's write-up (endpoints, design decisions, what was verified and
@@ -69,6 +69,7 @@ docker compose up -d --build
 - commerce-service: http://localhost:8086 · Postgres: localhost:5438
 - notification-service: http://localhost:8087 · Postgres: localhost:5439 · Redis: localhost:6383
 - search-service: http://localhost:8088 · OpenSearch: localhost:9201
+- recommendation-service: http://localhost:8089 · Redis: localhost:6384
 - Kafka: localhost:9194
 - MinIO (S3-compatible, stream recordings): localhost:9002 (API) · localhost:9003 (console, minioadmin/minioadmin)
 
@@ -111,6 +112,7 @@ cd services/payment-service && go build ./... && go vet ./...
 cd services/commerce-service && go build ./... && go vet ./...
 cd services/notification-service && go build ./... && go vet ./...
 cd services/search-service && go build ./... && go vet ./...
+cd services/recommendation-service && go build ./... && go vet ./...
 cd frontend && npm run build  # runs its own type check; see docs/task-frontend.md if you also want a standalone `tsc --noEmit`, which needs a prior build to see Next's generated route types
 ```
 

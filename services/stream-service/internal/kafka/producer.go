@@ -16,6 +16,7 @@ import (
 const (
 	TopicStream  = "stream-events"
 	TopicChannel = "channel-events"
+	TopicUser    = "user-events"
 )
 
 // Producer has no fixed topic -- stream-service publishes to two

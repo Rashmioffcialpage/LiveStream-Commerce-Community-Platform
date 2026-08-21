@@ -64,6 +64,35 @@ func (h *Handler) CreateChannel(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, channel)
 }
 
+// RecordView is the "User Events" source in the spec's recommendation
+// pipeline diagram (User Events -> Kafka -> Feature Pipeline -> ...).
+// Fired when a logged-in viewer opens a channel page. Anonymous views
+// aren't tracked -- there's no user_id to build a feature against, and a
+// personalized feed is meaningless for a user recommendation-service has
+// never seen.
+func (h *Handler) RecordView(w http.ResponseWriter, r *http.Request) {
+	claims, _ := auth.ClaimsFromContext(r.Context())
+	slug := r.PathValue("slug")
+
+	channel, err := h.DB.GetChannelBySlug(r.Context(), slug)
+	if errors.Is(err, db.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "channel not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not fetch channel")
+		return
+	}
+
+	payload, _ := json.Marshal(map[string]string{
+		"type": "view", "user_id": claims.UserID, "channel_id": channel.ID, "category": channel.Category,
+	})
+	if err := h.Producer.Produce(r.Context(), kafka.TopicUser, []byte(claims.UserID), payload); err != nil {
+		slog.Error("emit view event", "err", err)
+	}
+	w.WriteHeader(http.StatusNoContent) // no body -- 204 shouldn't carry one
+}
+
 func (h *Handler) GetChannel(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	channel, err := h.DB.GetChannelBySlug(r.Context(), slug)

@@ -7,6 +7,7 @@ const SUBSCRIPTION_URL = process.env.NEXT_PUBLIC_SUBSCRIPTION_URL!;
 const COMMERCE_URL = process.env.NEXT_PUBLIC_COMMERCE_URL!;
 const NOTIFICATION_URL = process.env.NEXT_PUBLIC_NOTIFICATION_URL!;
 const SEARCH_URL = process.env.NEXT_PUBLIC_SEARCH_URL!;
+const RECOMMENDATION_URL = process.env.NEXT_PUBLIC_RECOMMENDATION_URL!;
 
 export class ApiError extends Error {
   constructor(
@@ -279,4 +280,21 @@ export interface SearchResult {
 
 export function searchChannels(query: string): Promise<SearchResult[]> {
   return request(`${SEARCH_URL}/search?q=${encodeURIComponent(query)}`);
+}
+
+// --- recommendation-service ---
+
+export interface FeedItem extends Channel {
+  score: number;
+}
+
+export function getFeed(token: string): Promise<FeedItem[]> {
+  return request(`${RECOMMENDATION_URL}/feed`, { headers: authHeader(token) });
+}
+
+export function recordView(token: string, slug: string): Promise<void> {
+  return request(`${STREAM_URL}/channels/${slug}/view`, {
+    method: "POST",
+    headers: authHeader(token),
+  });
 }
