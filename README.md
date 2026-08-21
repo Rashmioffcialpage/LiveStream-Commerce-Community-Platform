@@ -11,14 +11,9 @@ implemented, run, and verified end to end before the next one starts.
 
 ## Target architecture
 
-```
 <img width="1536" height="1024" alt="ChatGPT Image Aug 20, 2026, 10_30_24 PM" src="https://github.com/user-attachments/assets/9137ec6e-b4eb-4c09-87f5-cc0d6bf46790" />
 
 
-Frontend: Next.js + TypeScript + Tailwind + React Query + WebSockets.
-Backend: Go microservices. Data: PostgreSQL, Redis, Kafka, OpenSearch,
-ClickHouse. Infra: Docker, Kubernetes, AWS (EKS/RDS/ElastiCache/MSK/S3/
-CloudFront) — local first, cloud once the local system is solid.
 
 ## Progress
 
